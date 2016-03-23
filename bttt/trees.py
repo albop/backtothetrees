@@ -12,13 +12,6 @@ class EventTree:
     probas = dict()
     values = dict()
 
-    #def children(self, s):
-    #    # returns a list of all children of s
-    #    if len(s)==len(self):
-    #        return [s]
-    #    else:
-    #        return [e for e in self.nodes if len(s)==len(e)-1 and contained(s,e)]
-
     def children(self, s):
         return [e for e in self.nodes if (s,e) in self.probas]
 
@@ -75,8 +68,10 @@ class BranchTree(EventTree):
             for b in range(2):
                 nodes.append(new_paths[b][i])
         etree.nodes = nodes
-
+        print(nodes)
         for s in etree.nodes:
+            print("s {}".format(s))
+            print(etree.children(s))
             etree.values[s] = 0
             if len(s)<len(etree):
                 if len(etree.children(s))>1:
