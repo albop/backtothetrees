@@ -3,9 +3,9 @@ from bttt.trees import get_ts, DeterministicTree
 
 
 
-
-
-tree = DeterministicTree(40)
+etree = DeterministicTree(N)
+for s in etree.nodes:
+    etree.values[s] = shock
 
 for n in tree.nodes:
     tree.values[n] = 0.1

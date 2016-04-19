@@ -175,7 +175,13 @@ class Model:
                 context['s'] = s
                 context['t'] = len(s)-1
                 if (conditions_fun[n] is None) or conditions_fun[n](s):
-                    var = eval_ast( model.variables_ast[n], context )
+                    try:
+                        var = eval_ast( model.variables_ast[n], context )
+                    except Exception as e:
+                        import ast
+                        print( ast.dump(  model.variables_ast[n] ) )
+                        # print()
+                        raise e
                     full_variables.append(var.name)
                     eq_ast = tsf_equations[n]
                     eq = eval_ast(eq_ast, context)
@@ -238,7 +244,7 @@ class Model:
 
 
         from dolo.numeric.extern.lmmcp import lmmcp
-        res = lmmcp(fun, dfun, x0, lb, ub, verbose=verbose, options={'preprocess': False, 'eps2': 1e-10})
+        res = lmmcp(fun, dfun, x0, lb, ub, verbose=verbose, options={'preprocess': True, 'eps2': 1e-10})
 
         from collections import OrderedDict
         return OrderedDict(zip(map(str,model.full_variables), res))
