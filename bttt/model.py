@@ -5,7 +5,7 @@ import yaml
 import time
 
 from .pattern import ReplaceExpectation, match
-from .ex_symbols import LinearExpression
+from .symbols import LinearExpression
 from .trees import *
 from .trees import get_ts
 
