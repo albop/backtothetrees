@@ -18,7 +18,7 @@ class EventTree:
         if len(s)==len(self):
             return [s]
         else:
-            return [e for e in self.nodes if len(s)==len(e)-1 and contained(s,e)]
+            return [e for e in self.nodes if (s,e) in self.probas]
 
     def parent(self, s):
         # returns parent of s
@@ -84,6 +84,54 @@ class BranchTree(EventTree):
                     etree.probas[(s, etree.children(s)[0])] = 1
             if len(s)==len(etree):
                 etree.probas[(s,s)] = 1
+
+
+class DeathTree(EventTree):
+
+    def __init__(self, N, p):
+        '''
+        p: [p_0, p_1]
+        '''
+
+        self.nodes = [(0,)]
+        self.probas = dict()
+        for t in range(1, N-1):
+            nn = self.nodes[-1]
+            nn0 = nn + (1,)
+            nn1 = nn + (1, 1)
+            self.probas[(nn, nn0)] = p
+            self.probas[(nn0, nn1)] = 1.0
+            self.probas[(nn1, nn1)] = 1.0
+            self.nodes.extend([nn0, nn1])
+            if t < N-2:
+                nn2 = nn + (0,)
+                self.nodes.append(nn2)
+                self.probas[(nn, nn2)] = 1-p
+            else:
+                self.probas[(nn, nn)] = 1-p
+
+
+
+        # nodes = [(0,)*t for t in range(1,T)]
+        # new_paths = []
+        # for i in range(2):
+        #     nn = nodes[-1] + (i,)
+        #     new_paths.append([nn+(0,)*t for t in range(0,N-T+1)])
+        # for i in range(len(new_paths[0])):
+        #     for b in range(2):
+        #         nodes.append(new_paths[b][i])
+        # etree.nodes = nodes
+        #
+        # for s in etree.nodes:
+        #     etree.values[s] = 0
+        #     if len(s)<len(etree):
+        #         if len(etree.children(s))>1:
+        #             etree.probas[(s, etree.children(s)[0])] = p[0]
+        #             etree.probas[(s, etree.children(s)[1])] = p[1]
+        #         else:
+        #             etree.probas[(s, etree.children(s)[0])] = 1
+        #     if len(s)==len(etree):
+        #         etree.probas[(s,s)] = 1
 
 
 

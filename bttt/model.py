@@ -1,4 +1,4 @@
-from dolo.compiler.codegen import to_source
+from dolang.codegen import to_source
 
 import copy
 import yaml
@@ -8,7 +8,7 @@ from .pattern import ReplaceExpectation, match
 from .ex_symbols import LinearExpression
 from .trees import *
 from .trees import get_ts
-
+from .deriv import LIVar
 
 def import_tree_model(filename, tree=None, key='equations'):
 
@@ -82,17 +82,6 @@ def eval_ast(expr, d):
     res = eval(cc, d)
     return res
 
-class LIVar:
-    def __init__(self, name, etree):
-        self.name = name
-        self.etree = etree
-
-    def __getitem__(self, x):
-        import sympy
-        # return sympy.Symbol(self.name+'_'+str.join('', map(str,x)))
-        ind = self.etree.nodes.index(x)
-        name = '{}_{}'.format(self.name,ind)
-        return LinearExpression(name=name)
 
 def deterministic_simul(model, sol, ts_ind=0):
     import numpy
@@ -119,20 +108,21 @@ class Model:
         pass
 
 
-    def compute_jacobian(self):
+    def compute_jacobian(self, values={}):
 
         import time
 
         t1 = time.time()
+
         model = self
         etree = model.etree
 
-        indexed_variables_str = set( [va.value.id for va in model.variables_ast] )
-        indexed_variables = [LIVar(vs, etree) for vs in indexed_variables_str]
+        indexed_variables_str = set([va.value.id for va in model.variables_ast])
+        indexed_variables = [LIVar(vs, etree, values) for vs in indexed_variables_str]
 
         context = {}
         for iv in indexed_variables:
-            context[iv.name]  =  iv
+            context[iv.name] = iv
         for c,v in self.calibration.items():
             context[c] = v
 
@@ -184,7 +174,9 @@ class Model:
                         raise e
                     full_variables.append(var.name)
                     eq_ast = tsf_equations[n]
+
                     eq = eval_ast(eq_ast, context)
+                    # print( to_source( eq ) )
                     full_equations.append(  eq )
                     full_complementarities.append( model.complementarities[n] )
         t4 = time.time()
@@ -217,37 +209,80 @@ class Model:
 
         return res, jac, lb
 
-    def solve(self, verbose=False, jacs=None):
+    def solve(self, verbose=False, jacs=None, linear=True, init_guess={}):
 
-        model = self
-        import numpy
+        if linear:
 
-        if jacs is None:
-            constants,mat,lb = self.compute_jacobian()
+            model = self
+            import numpy
+
+            if jacs is None:
+                constants,mat,lb = self.compute_jacobian()
+            else:
+                constants,mat,lb = jacs
+
+            mm = numpy.array(mat).astype(dtype=float)
+            v = numpy.array(constants).astype(dtype=float).flatten()
+            lb = numpy.array(lb).astype(dtype=float).flatten()
+
+            lb[lb<-1000] = -numpy.inf
+            x0 = v*0 + 0.1
+            ub = numpy.zeros_like(lb)+numpy.inf
+
+            def fun(x):
+                res = v-numpy.dot(mm, x)
+                return res
+            #
+            def dfun(x):
+                return -mm
+
+
+            from dolo.numeric.extern.lmmcp import lmmcp
+            res = lmmcp(fun, dfun, x0, lb, ub, verbose=verbose, options={'preprocess': True, 'eps2': 1e-10, 'presteps': 40})
+
+            from collections import OrderedDict
+            return OrderedDict(zip(map(str,model.full_variables), res))
         else:
-            constants,mat,lb = jacs
 
-        mm = numpy.array(mat).astype(dtype=float)
-        v = numpy.array(constants).astype(dtype=float).flatten()
-        lb = numpy.array(lb).astype(dtype=float).flatten()
+            model = self
+            import numpy
 
-        lb[lb<-1000] = -numpy.inf
-        x0 = v*0 + 0.1
-        ub = numpy.zeros_like(lb)+numpy.inf
-
-        def fun(x):
-            res = v-numpy.dot(mm, x)
-            return res
-        #
-        def dfun(x):
-            return -mm
+            constants, mat, lb = self.compute_jacobian(values=init_guess)   # warmup
+            lb[lb < -1000] = -numpy.inf
+            v = numpy.array(constants).astype(dtype=float).flatten()
+            if len(init_guess)>0:
+                x0 = numpy.array([init_guess[s] for s in self.full_variables])
+            else:
+                x0 = v*0 + 0.1
+            ub = numpy.zeros_like(lb)+numpy.inf
 
 
-        from dolo.numeric.extern.lmmcp import lmmcp
-        res = lmmcp(fun, dfun, x0, lb, ub, verbose=verbose, options={'preprocess': True, 'eps2': 1e-10})
 
-        from collections import OrderedDict
-        return OrderedDict(zip(map(str,model.full_variables), res))
+            def resid(x):
+                vals = {self.full_variables[i]: x[i] for i in range(len(x))}
+
+                constants,mat,trash = self.compute_jacobian(values = vals)
+                mm = numpy.array(mat).astype(dtype=float)
+                v = numpy.array(constants).astype(dtype=float).flatten()
+                # lb = numpy.array(lb).astype(dtype=float).flatten()
+
+
+                # res = v-numpy.dot(mm, x)
+                # return res
+                return [v, -mm]
+
+            def fun(x):
+                return resid(x)[0]
+            #
+            def dfun(x):
+                return resid(x)[1]
+
+
+            from dolo.numeric.extern.lmmcp import lmmcp
+            res = lmmcp(fun, dfun, x0, lb, ub, verbose=verbose, options={'preprocess': True, 'eps2': 1e-10})
+
+            from collections import OrderedDict
+            return OrderedDict(zip(map(str,model.full_variables), res))
 
 
 if __name__ == '__main__':
