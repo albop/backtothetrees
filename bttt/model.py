@@ -9,7 +9,7 @@ from .pattern import ReplaceExpectation, match
 from .symbols import LinearExpression
 from .trees import *
 from .trees import get_ts
-from .deriv import LIVar
+from .symbols import LIVar
 
 def import_tree_model(filename, tree=None, key='equations'):
 

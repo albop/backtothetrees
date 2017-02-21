@@ -43,13 +43,14 @@ def write_time_subscript(s):
 
 class LinearExpression:
 
-    def __init__(self, c=None, name=None):
+    def __init__(self, c=None, name=None, values={}):
         if name is not None:
             c = {name: 1.0}
         if c is None:
             c = dict()
         if 1 not in c:
-            c[1] = 0.0
+            val = values.get(name, 0.0)
+            c[1] = val
         self.c = c
         self.name = name
 
@@ -114,7 +115,7 @@ class LinearExpression:
 class LIVar:
     # indexed symbol which returns a linear expression
 
-    def __init__(self, name, etree):
+    def __init__(self, name, etree, values):
         self.name = name
         self.etree = etree
 
