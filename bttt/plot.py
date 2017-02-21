@@ -41,3 +41,31 @@ def layout_tree(tree):
         y = -sum(n[:x])
         pos[n] = x,y
     return pos
+
+from .model import import_tree_model
+from .trees import get_ts, DeterministicTree, BranchTree
+
+
+def get_coordinates(bt):
+    from bttt.trees import BranchTree
+    from collections import OrderedDict
+    if isinstance(bt, BranchTree):
+        coordinates = OrderedDict()
+        for node in bt.nodes:
+            coordinates[node] = (len(node)-1, sum(node))
+        return coordinates
+    else:
+        raise Exception("Not Implemented")
+
+
+def plot(tree):
+    import matplotlib.pyplot as plt
+    coordinates = get_coordinates(tree)
+    for node in tree.nodes:
+        cn = coordinates[node]
+        for child in tree.children(node):
+            cc = coordinates[child]
+            x, y = [*zip(cn,cc)]
+            plt.plot(x, y, color='black')
+            plt.plot(cn[0], cn[1], 'o', color='red')
+            plt.grid()
