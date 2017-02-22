@@ -91,14 +91,21 @@ class LinearExpression:
         return LinearExpression(c=kk)
 
     def __mul__(self, v):
-        kk = self.c.copy() # ?
-        for k in kk.keys():
-            kk[k] *= v
-
-        return LinearExpression(c=kk)
+        if isinstance(v, LinearExpression):
+            a = self
+            b = v
+            c_a = a.c[1]
+            c_b = b.c[1]
+            res = c_a*b + c_b*a
+            res.c[1] = c_a*c_b
+            return res
+        else:
+            kk = self.c.copy() # ?
+            for k in kk.keys():
+                kk[k] *= v
+            return LinearExpression(c=kk)
 
     __rmul__ = __mul__
-
 
     def __truediv__(self, v):
         kk = self.c.copy() # ?
@@ -118,8 +125,9 @@ class LIVar:
     def __init__(self, name, etree, values):
         self.name = name
         self.etree = etree
+        self.values = values
 
     def __getitem__(self, x):
         ind = self.etree.nodes.index(x)   # why use the index ?
         name = '{}_{}'.format(self.name,ind)
-        return LinearExpression(name=name)
+        return LinearExpression(name=name, values=self.values)
