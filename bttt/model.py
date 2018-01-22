@@ -1,5 +1,6 @@
 from dolang.codegen import to_source
 
+import re
 
 import copy
 import yaml
@@ -32,7 +33,9 @@ def import_tree_model(filename, tree=None, key='equations'):
         return lines
 
     else:
-        return Model(tree, lines, calibration)
+        return Model(tree, lines, calibration, source=d)
+
+import ast
 
 def read_equations(lines):
 
@@ -42,31 +45,31 @@ def read_equations(lines):
     variables = []
     complementarities = []
 
+    regex = re.compile("((.*):|)(.*)⟂(.*)")
+
     for l in lines:
-        if ':' in l:
-            cond, rhs = str.split(l, ':')
-        else:
-            cond, rhs = None, l
-        rhs = rhs.strip()
-        # print("cond : " + str(cond))
-        if cond:
+        m = regex.match(l)
+        cond, eq, comp = m.groups()[1:]
+
+        if cond is not None:
             cond = cond.strip()
-        # print(rhs)
-        d = match("_x | _y", rhs)
-        if not d:
-            lb = True
-            d = match("_x | 0 <= _y", rhs)
-        else:
-            lb = False
-
-
-        eq = d["_x"]
-        comp = d['_y']
-        var = comp
-        # print( "... {}".format( (var, lb))  )
 
         conditions.append(cond)
-        equations.append(eq)
+
+        comp = comp.strip()
+        d1 = match( "_x <= _y", comp)
+        if d1:
+            lb = d1["_x"]
+            var = d1["_y"]
+            lb = to_source(lb)
+        else:
+            d2 = match( "_y", comp)
+            lb = "-inf"
+            var = d2["_y"]
+
+        var = to_source(var)
+
+        equations.append(eq.strip())
         variables.append(var)
         complementarities.append(lb)
 
@@ -75,10 +78,8 @@ def read_equations(lines):
 
 def eval_ast(expr, d):
     import ast
-
-    # a = ast.Expr(value=expr)
     a = ast.Expression(body=expr)
-    a =     ast.fix_missing_locations(a)
+    a = ast.fix_missing_locations(a)
     cc = compile(a, '<string>', 'eval')
     res = eval(cc, d)
     return res
@@ -96,16 +97,24 @@ def deterministic_simul(model, sol, ts_ind=0):
 class Model:
     __jacobian__ = None
 
-    def __init__(self, etree, lines, calibration):
+    def __init__(self, etree, lines, calibration, source=None):
 
         [conditions, equations, variables, complementarities] = read_equations(lines)
 
-        self.conditions_ast = conditions
-        self.equations_ast = equations
-        self.variables_ast = variables
+        self.conditions = conditions
+
+        self.equations = equations
+        self.variables = variables
         self.complementarities = complementarities
+
+        self.conditions_ast = self.conditions
+        self.equations_ast = [ast.parse(eq).body[0].value for eq in equations]
+        self.variables_ast = [ast.parse(v).body[0].value for v in variables]
+        self.complementarities_ast = [ast.parse(c).body[0].value for c in complementarities]
+
         self.calibration = calibration
         self.etree = etree
+        self.source = source
         pass
 
 
@@ -139,8 +148,9 @@ class Model:
                 p *= pp
             return p
 
-        context['s'] = etree.nodes[0]
+        # context['s'] = etree.nodes[0]
         context['etree'] = etree
+        context['T'] = len(etree.nodes)-1
         context['S'] = lambda x: [(etree.probas[s, x], x) for x in etree.children(s)]
         context['P'] = lambda x: etree.parent(x)
         context['H'] = lambda x: etree.history(x)
@@ -191,10 +201,7 @@ class Model:
         for p in range(P):
             eq = full_equations[p]
             res[p] = -eq.c[1]
-            if full_complementarities[p]:
-                lb[p] = 0
-            else:
-                lb[p] = -100000
+            lb[p] = eval(full_complementarities[p],{"inf":numpy.inf})
             for k in eq.c.keys():
                 if k != 1:
                     q = full_variables.index(k)
@@ -229,6 +236,15 @@ class Model:
             lb[lb<-1000] = -numpy.inf
             x0 = v*0 + 0.1
             ub = numpy.zeros_like(lb)+numpy.inf
+
+            return {
+                "v": v,
+                "mm": mm,
+                "x0": x0,
+                "lb": lb,
+                "ub": ub
+
+            }
 
             def fun(x):
                 res = v-numpy.dot(mm, x)
