@@ -111,6 +111,33 @@ class DeathTree(EventTree):
                 self.probas[(nn, nn)] = 1-p
 
 
+class PersistentDeathTree(EventTree):
+
+    def __init__(self, N, p, k=5):
+        '''
+        p: [p_0, p_1]
+        '''
+
+        self.nodes = [(0,)]
+        self.probas = dict()
+        for t in range(1, N-1):
+            nn = self.nodes[-1]
+            nn0 = nn + (1,)
+            self.probas[(nn, nn0)] = p
+            for j in range(k):
+                nn1 = nn0 + (1,)
+            # nn0 = nn +
+            nn1 = nn + (1, 1)
+            self.probas[(nn0, nn1)] = 1.0
+            self.probas[(nn1, nn1)] = 1.0
+            self.nodes.extend([nn0, nn1])
+            if t < N-2:
+                nn2 = nn + (0,)
+                self.nodes.append(nn2)
+                self.probas[(nn, nn2)] = 1-p
+            else:
+                self.probas[(nn, nn)] = 1-p
+
 
         # nodes = [(0,)*t for t in range(1,T)]
         # new_paths = []
@@ -135,10 +162,12 @@ class DeathTree(EventTree):
 
 
 
-def get_ts(etree, sol, vname, ts_ind=0):
+def get_ts(etree, sol, vname, terminal_state=None, ts_ind=0):
     import numpy
-    terminal_states = [e for e in etree.nodes if len(e)==len(etree)]
-    history = etree.history(terminal_states[ts_ind])
+    if terminal_state is None:
+        terminal_states = [e for e in etree.nodes if len(e)==len(etree)]
+        terminal_state = terminal_states[ts_ind]
+    history = etree.history()
     his_inds = [etree.nodes.index(e) for e in history]
     vals = [sol["{}_{}".format(vname, h)] for h in his_inds]
     return numpy.array(vals).astype(dtype=float)

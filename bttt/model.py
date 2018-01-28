@@ -5,6 +5,7 @@ import re
 import copy
 import yaml
 import time
+import numpy
 
 from .pattern import ReplaceExpectation, match
 from .symbols import LinearExpression
@@ -68,7 +69,6 @@ def read_equations(lines):
             var = d2["_y"]
 
         var = to_source(var)
-
         equations.append(eq.strip())
         variables.append(var)
         complementarities.append(lb)
@@ -93,6 +93,25 @@ def deterministic_simul(model, sol, ts_ind=0):
     df = pandas.DataFrame( numpy.array(series).T, columns=variables)
     return df
 
+def solve_lcp(q,J,lb,x0,options={},verbose=True):
+
+    def fun(x):
+        res = q + J@x
+        return res
+    #
+    def dfun(x):
+        return J
+
+    ub = numpy.zeros_like(lb)+numpy.inf
+
+    opts = {'preprocess': True, 'eps2': 1e-10, 'presteps': 40}
+
+    opts.update(options)
+
+    from dolo.numeric.extern.lmmcp import lmmcp
+    res = lmmcp(fun, dfun, x0, lb, ub, verbose=verbose, options=opts)
+
+    return res
 
 class Model:
     __jacobian__ = None
@@ -107,7 +126,7 @@ class Model:
         self.variables = variables
         self.complementarities = complementarities
 
-        self.conditions_ast = self.conditions
+        self.conditions_ast = copy.deepcopy(self.conditions)
         self.equations_ast = [ast.parse(eq).body[0].value for eq in equations]
         self.variables_ast = [ast.parse(v).body[0].value for v in variables]
         self.complementarities_ast = [ast.parse(c).body[0].value for c in complementarities]
@@ -185,7 +204,6 @@ class Model:
                         raise e
                     full_variables.append(var.name)
                     eq_ast = tsf_equations[n]
-
                     eq = eval_ast(eq_ast, context)
                     # print( to_source( eq ) )
                     full_equations.append(  eq )
@@ -217,7 +235,7 @@ class Model:
 
         return res, jac, lb
 
-    def solve(self, verbose=False, jacs=None, linear=True, init_guess={}):
+    def solve(self, verbose=False, jacs=None, linear=True, init_guess={}, return_problem=False, solver_options={}, xb0=0.1):
 
         if linear:
 
@@ -229,33 +247,25 @@ class Model:
             else:
                 constants,mat,lb = jacs
 
-            mm = numpy.array(mat).astype(dtype=float)
-            v = numpy.array(constants).astype(dtype=float).flatten()
+            J = -numpy.array(mat).astype(dtype=float)
+            q = numpy.array(constants).astype(dtype=float).flatten()
             lb = numpy.array(lb).astype(dtype=float).flatten()
 
             lb[lb<-1000] = -numpy.inf
-            x0 = v*0 + 0.1
+            x0 = q*0 + xb0
             ub = numpy.zeros_like(lb)+numpy.inf
 
-            return {
-                "v": v,
-                "mm": mm,
-                "x0": x0,
-                "lb": lb,
-                "ub": ub
 
-            }
+            if return_problem:
+                return {
+                    "q": q,
+                    "J": J,
+                    "x0": x0,
+                    "lb": lb,
+                    "ub": ub
+                }
 
-            def fun(x):
-                res = v-numpy.dot(mm, x)
-                return res
-            #
-            def dfun(x):
-                return -mm
-
-
-            from dolo.numeric.extern.lmmcp import lmmcp
-            res = lmmcp(fun, dfun, x0, lb, ub, verbose=verbose, options={'preprocess': True, 'eps2': 1e-10, 'presteps': 40})
+            res = solve_lcp(q,J,lb,x0,options=solver_options,verbose=verbose)
 
             from collections import OrderedDict
             return OrderedDict(zip(map(str,model.full_variables), res))

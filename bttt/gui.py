@@ -4,24 +4,24 @@ from ipywidgets import *
 
 from collections import OrderedDict
 def get_coordinates(tree):
-    if isinstance( tree, DeathTree):
-        coords = OrderedDict()
-        for n in tree.nodes:
-            x = len(n)
-            y = 0.0
-            if sum(n)==1:
-                x += 0.3
-                y = 0.5
-            elif sum(n)==2:
-                x += 0.6
-                y = 1.0
-            coords[n] = (x,y)
-    elif isinstance( tree, DeterministicTree):
-        coords = OrderedDict()
-        for i,n in enumerate(tree.nodes):
-            coords[n] = (float(i),0.0)
-    else:
-        raise Exception("Unknown tree type")
+    # if isinstance( tree, DeathTree):
+    coords = OrderedDict()
+    for n in tree.nodes:
+        x = len(n)
+        y = sum(n)
+        # if sum(n)==1:
+        #     x += 0.3
+        #     y = 0.5
+        # elif sum(n)==2:
+        #     x += 0.6
+        #     y = 1.0
+        coords[n] = (x,y)
+    # elif isinstance( tree, DeterministicTree):
+    #     coords = OrderedDict()
+    #     for i,n in enumerate(tree.nodes):
+    #         coords[n] = (float(i),0.0)
+    # else:
+    #     raise Exception("Unknown tree type")
     return coords
 
 class VTree:
@@ -85,19 +85,16 @@ class EquationsWidget:
         eq_widgets = []
         for i,eq in enumerate(self.equations):
             cc,bo = self.conditions[i]
-            cc = cc.replace("<", "&lt")
-            cc = cc.replace(">", "&gt")
             teqw = Text(eq)
             if not bo:
                 teqw.disabled=True
             else:
                 teqw.disabled=False
-
             eq_widgets.append(teqw)
             if bo:
-                w = HTML('<div style="background-color:#FFFF99">'+cc+"</div>")
+                w = Text('*'+cc+'*')
             else:
-                w = HTML(cc)
+                w = Text(cc)
             cond_widgets.append(w)
         self.widget.children = (VBox(cond_widgets), VBox(eq_widgets))
 
