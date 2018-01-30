@@ -161,13 +161,12 @@ class PersistentDeathTree(EventTree):
         #         etree.probas[(s,s)] = 1
 
 
-
 def get_ts(etree, sol, vname, terminal_state=None, ts_ind=0):
     import numpy
     if terminal_state is None:
         terminal_states = [e for e in etree.nodes if len(e)==len(etree)]
         terminal_state = terminal_states[ts_ind]
-    history = etree.history()
+    history = etree.history(terminal_state)
     his_inds = [etree.nodes.index(e) for e in history]
     vals = [sol["{}_{}".format(vname, h)] for h in his_inds]
     return numpy.array(vals).astype(dtype=float)
